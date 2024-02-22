@@ -2,9 +2,15 @@
 
 package com.vero.glovolikeanimation
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -16,6 +22,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.ExperimentalTextApi
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
@@ -26,7 +33,9 @@ import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlin.math.PI
+import kotlin.math.atan2
 import kotlin.math.cos
+import kotlin.math.roundToInt
 import kotlin.math.sin
 
 data class GlovoItem(
@@ -41,18 +50,69 @@ fun GlovoLikeAnimation(
 //  Scale factor for icon
     iconScale: Float = 3f,
     items: List<GlovoItem> = emptyList(),
-    mainCircleRadius: Dp = 130.dp,
+    mainCircleRadius: Dp = 140.dp,
     innerCircleRadius: Dp = 60.dp,
     textStyle: TextStyle = MaterialTheme.typography.bodyMedium,
     onGoalClick: (GlovoItem) -> Unit,
 ) {
 
+    val animateFloat = remember { Animatable(0f) }
     var circleCenter by remember { mutableStateOf(Offset.Zero) }
+
+//  current drag angle
+    var angle by remember { mutableStateOf(0f) }
+
+//  start angle of a new drag
+    var dragStartedAngle by remember { mutableStateOf(0f) }
+
+//  variable in which we will need to calculate difference between old drag position and new
+    var oldAngle by remember { mutableStateOf(angle) }
+
+    LaunchedEffect(key1 = items) {
+        animateFloat.animateTo(
+            targetValue = 1f,
+            animationSpec = spring(
+                dampingRatio = Spring.DampingRatioMediumBouncy,
+                stiffness = Spring.StiffnessVeryLow
+            )
+        )
+    }
 
 //  Object that will help us to measure and customize text
     val textMeasurer = rememberTextMeasurer()
 
-    Canvas(modifier = modifier) {
+    Canvas(modifier = modifier
+        .pointerInput(true) {
+            detectDragGestures(
+                onDragStart = { offset ->
+                    // Calculate the angle of the drag started point relative to circleCenter
+                    dragStartedAngle = -atan2(
+                        circleCenter.x - offset.x,
+                        circleCenter.y - offset.y,
+                    ) * (180f / PI.toFloat())
+                    // Adjust the angle to fit within the range of 0 to 360 degrees
+                    dragStartedAngle = (dragStartedAngle + 180f).mod(360f)
+                },
+                onDragEnd = {
+                    // Save the current angle as oldAngle when the drag ends
+                    oldAngle = angle
+                }
+            ) { change, _ ->
+                // Calculate the angle of the current drag position relative to circleCenter
+                var touchAngle = -atan2(
+                    circleCenter.x - change.position.x,
+                    circleCenter.y - change.position.y,
+                ) * (180f / PI.toFloat())
+                touchAngle = (touchAngle + 180f).mod(360f)
+
+                // Calculate the change in angle from the start of the drag to the current position
+                val changeAngle = touchAngle - dragStartedAngle
+
+                // Update the angle based on the change in angle from the start of the drag
+                angle = (oldAngle + (changeAngle).roundToInt())
+            }
+        }
+    ) {
 
         //Save center of the canvas
         circleCenter = Offset(center.x, center.y)
@@ -68,14 +128,15 @@ fun GlovoLikeAnimation(
             iconScale = iconScale,
             textStyle = textStyle,
             textMeasurer = textMeasurer,
-            circleCenter = circleCenter
+            circleCenter = circleCenter,
+            animationValue = animateFloat.value
         )
 
 //      Draw secondary items
         items.forEachIndexed { i, item ->
             //            Firstly count the angle on which we should position secondary item in degrees
 //            I'm not sure about -90 but this help to position degrees in the right position (you can play around with that)
-            val angleInDegrees = (i * distance - 90)
+            val angleInDegrees = (i * distance + angle - 90)
 
 //          Convert angle to radians
             val angleInRad = angleInDegrees * (PI / 180).toFloat()
@@ -87,7 +148,8 @@ fun GlovoLikeAnimation(
                 iconScale = iconScale,
                 textStyle = textStyle,
                 textMeasurer = textMeasurer,
-                circleCenter = circleCenter
+                circleCenter = circleCenter,
+                animationValue = animateFloat.value
             )
         }
     }
@@ -101,8 +163,10 @@ fun DrawScope.drawCircleInfo(
     iconScale: Float,
     textStyle: TextStyle,
     textMeasurer: TextMeasurer,
+    animationValue: Float,
     circleCenter: Offset
 ) {
+
 //  In essence, this function helps find the coordinates of a point on a circle based
 //  on its radius (mainCircleRadius), center (circleCenter), and the angle (angleInRad)
 //  at which you want to find the point.
@@ -113,7 +177,7 @@ fun DrawScope.drawCircleInfo(
 //  Draw secondary items with counted offset
     drawCircle(
         color = Color.White,
-        radius = innerCircleRadius.toPx(),
+        radius = innerCircleRadius.toPx() * animationValue,
         center = currentOffset
     )
 
@@ -126,7 +190,7 @@ fun DrawScope.drawCircleInfo(
         top = currentOffset.y - 15.dp.toPx() - pathBounds.bottom
     ) {
         // Increase path in 3 times
-        scale(scale = iconScale, pivot = pathBounds.topLeft) {
+        scale(scale = iconScale * animationValue, pivot = pathBounds.topLeft) {
             drawPath(
                 path = item.path,
                 color = Color.Black
@@ -144,7 +208,7 @@ fun DrawScope.drawCircleInfo(
 //      Set style for the text
         style = textStyle.copy(
             textAlign = TextAlign.Center,
-            fontSize = textStyle.fontSize
+            fontSize = textStyle.fontSize * animationValue
         )
     )
 
