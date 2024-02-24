@@ -154,12 +154,19 @@ fun GlovoLikeAnimation(
 //      Draw secondary items
         items.forEachIndexed { i, item ->
 
-//          Firstly count the angle on which we should position secondary item in degrees
-//          I'm not sure about -90 but this help to position degrees in the right position (you can play around with that)
+//          Firstly count the angle on which we
+//          should position secondary item in degrees
+//          -90 will help to position degrees in
+//          the right appropriately (you can play around with that)
             val angleInDegrees = (i * distance + angle - 90)
 
 //          Convert angle to radians
             val angleInRad = angleInDegrees * (PI / 180).toFloat()
+//          In essence, this function helps
+//          find the coordinates of a point on a circle based
+//          on its radius (mainCircleRadius),
+//          center (circleCenter), and the angle (angleInRad)
+//          at which you want to find the point.
             val currentOffset = Offset(
                 x = mainCircleRadius.toPx() * cos(angleInRad) + circleCenter.x,
                 y = mainCircleRadius.toPx() * sin(angleInRad) + circleCenter.y
@@ -190,10 +197,6 @@ fun DrawScope.drawCircleInfo(
     animationValue: Float,
     currentOffset: Offset
 ) {
-
-//  In essence, this function helps find the coordinates of a point on a circle based
-//  on its radius (mainCircleRadius), center (circleCenter), and the angle (angleInRad)
-//  at which you want to find the point.
 
 //  Draw secondary items with counted offset
     drawCircle(
