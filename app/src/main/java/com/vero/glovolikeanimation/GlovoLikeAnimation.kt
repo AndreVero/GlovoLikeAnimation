@@ -8,15 +8,18 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
@@ -56,16 +59,17 @@ fun GlovoLikeAnimation(
     onGoalClick: (GlovoItem) -> Unit,
 ) {
 
+    val glovoUiItems = remember { mutableStateMapOf<Offset, GlovoItem>() }
     val animateFloat = remember { Animatable(0f) }
     var circleCenter by remember { mutableStateOf(Offset.Zero) }
 
-//  current drag angle
+//  Current drag angle
     var angle by remember { mutableStateOf(0f) }
 
-//  start angle of a new drag
+//  Start angle of a new drag
     var dragStartedAngle by remember { mutableStateOf(0f) }
 
-//  variable in which we will need to calculate difference between old drag position and new
+//  Variable in which we will need to calculate difference between old drag position and new
     var oldAngle by remember { mutableStateOf(angle) }
 
     LaunchedEffect(key1 = items) {
@@ -82,6 +86,17 @@ fun GlovoLikeAnimation(
     val textMeasurer = rememberTextMeasurer()
 
     Canvas(modifier = modifier
+//       Check that click offset was inside a circle
+        .pointerInput(true) {
+            detectTapGestures { clickOffset ->
+                glovoUiItems.forEach { item ->
+                    val rect = Rect(item.key, innerCircleRadius.toPx())
+                    if (rect.contains(clickOffset)) {
+                        onGoalClick(item.value)
+                    }
+                }
+            }
+        }
         .pointerInput(true) {
             detectDragGestures(
                 onDragStart = { offset ->
@@ -98,58 +113,69 @@ fun GlovoLikeAnimation(
                     oldAngle = angle
                 }
             ) { change, _ ->
-                // Calculate the angle of the current drag position relative to circleCenter
+//              Calculate the angle of the current drag position relative to circleCenter
                 var touchAngle = -atan2(
                     circleCenter.x - change.position.x,
                     circleCenter.y - change.position.y,
                 ) * (180f / PI.toFloat())
                 touchAngle = (touchAngle + 180f).mod(360f)
 
-                // Calculate the change in angle from the start of the drag to the current position
+//              Calculate the change in angle from the start of the drag to the current position
                 val changeAngle = touchAngle - dragStartedAngle
 
-                // Update the angle based on the change in angle from the start of the drag
+//              Update the angle based on the change in angle from the start of the drag
                 angle = (oldAngle + (changeAngle).roundToInt())
             }
         }
     ) {
 
-        //Save center of the canvas
+//      Clear circles offset before recalculation
+        glovoUiItems.clear()
+
+//      Save center of the canvas
         circleCenter = Offset(center.x, center.y)
 
         //Count the distance for items around the circle
         val distance = 360f / items.size
+        val mainCircleOffset = Offset(x = circleCenter.x, y = circleCenter.y)
+        glovoUiItems[mainCircleOffset] = mainItem
 
+//      Draw main circle in the center
         drawCircleInfo(
             item = mainItem,
-            angleInRad = 0f,
-            mainCircleRadius = 0.dp,
             innerCircleRadius = innerCircleRadius,
             iconScale = iconScale,
             textStyle = textStyle,
             textMeasurer = textMeasurer,
-            circleCenter = circleCenter,
-            animationValue = animateFloat.value
+            animationValue = animateFloat.value,
+            currentOffset = mainCircleOffset
         )
 
 //      Draw secondary items
         items.forEachIndexed { i, item ->
-            //            Firstly count the angle on which we should position secondary item in degrees
-//            I'm not sure about -90 but this help to position degrees in the right position (you can play around with that)
+
+//          Firstly count the angle on which we should position secondary item in degrees
+//          I'm not sure about -90 but this help to position degrees in the right position (you can play around with that)
             val angleInDegrees = (i * distance + angle - 90)
 
 //          Convert angle to radians
             val angleInRad = angleInDegrees * (PI / 180).toFloat()
+            val currentOffset = Offset(
+                x = mainCircleRadius.toPx() * cos(angleInRad) + circleCenter.x,
+                y = mainCircleRadius.toPx() * sin(angleInRad) + circleCenter.y
+            )
+
+//          Add circle offset after recalculation
+            glovoUiItems[currentOffset] = item
+
             drawCircleInfo(
                 item = item,
-                angleInRad = angleInRad,
-                mainCircleRadius = mainCircleRadius,
                 innerCircleRadius = innerCircleRadius,
                 iconScale = iconScale,
                 textStyle = textStyle,
                 textMeasurer = textMeasurer,
-                circleCenter = circleCenter,
-                animationValue = animateFloat.value
+                animationValue = animateFloat.value,
+                currentOffset = currentOffset
             )
         }
     }
@@ -157,23 +183,18 @@ fun GlovoLikeAnimation(
 
 fun DrawScope.drawCircleInfo(
     item: GlovoItem,
-    angleInRad: Float,
-    mainCircleRadius: Dp,
     innerCircleRadius: Dp,
     iconScale: Float,
     textStyle: TextStyle,
     textMeasurer: TextMeasurer,
     animationValue: Float,
-    circleCenter: Offset
+    currentOffset: Offset
 ) {
 
 //  In essence, this function helps find the coordinates of a point on a circle based
 //  on its radius (mainCircleRadius), center (circleCenter), and the angle (angleInRad)
 //  at which you want to find the point.
-    val currentOffset = Offset(
-        x = mainCircleRadius.toPx() * cos(angleInRad) + circleCenter.x,
-        y = mainCircleRadius.toPx() * sin(angleInRad) + circleCenter.y
-    )
+
 //  Draw secondary items with counted offset
     drawCircle(
         color = Color.White,
@@ -205,6 +226,7 @@ fun DrawScope.drawCircleInfo(
 //          Set constraints to prevent overflow
             maxWidth = (innerCircleRadius.toPx() * 2 - 16.dp.toPx()).toInt()
         ),
+
 //      Set style for the text
         style = textStyle.copy(
             textAlign = TextAlign.Center,

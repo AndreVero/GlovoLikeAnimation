@@ -1,6 +1,7 @@
 package com.vero.glovolikeanimation
 
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.fillMaxSize
@@ -29,7 +30,9 @@ class MainActivity : ComponentActivity() {
                     color = Color.Black
                 ) {
                     GlovoLikeAnimation(
-                        onGoalClick = {},
+                        onGoalClick = { item ->
+                            Log.d("Glovo Item", item.title)
+                        },
                         mainItem = GlovoItem("Main", defaultPath),
                         items = listOf(
                             GlovoItem("Secondary 1", defaultPath),
