@@ -106,7 +106,7 @@ fun GlovoLikeAnimation(
                         circleCenter.y - offset.y,
                     ) * (180f / PI.toFloat())
                     // Adjust the angle to fit within the range of 0 to 360 degrees
-                    dragStartedAngle = (dragStartedAngle + 180f).mod(360f)
+                    dragStartedAngle = dragStartedAngle.mod(360f)
                 },
                 onDragEnd = {
                     // Save the current angle as oldAngle when the drag ends
@@ -118,7 +118,7 @@ fun GlovoLikeAnimation(
                     circleCenter.x - change.position.x,
                     circleCenter.y - change.position.y,
                 ) * (180f / PI.toFloat())
-                touchAngle = (touchAngle + 180f).mod(360f)
+                touchAngle = touchAngle.mod(360f)
 
 //              Calculate the change in angle from the start of the drag to the current position
                 val changeAngle = touchAngle - dragStartedAngle
