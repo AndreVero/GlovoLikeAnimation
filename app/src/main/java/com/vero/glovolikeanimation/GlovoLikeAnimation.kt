@@ -124,7 +124,7 @@ fun GlovoLikeAnimation(
                 val changeAngle = touchAngle - dragStartedAngle
 
 //              Update the angle based on the change in angle from the start of the drag
-                angle = (oldAngle + (changeAngle).roundToInt())
+                angle = (oldAngle + changeAngle).mod(360f)
             }
         }
     ) {
